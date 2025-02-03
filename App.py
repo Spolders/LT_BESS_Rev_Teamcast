@@ -15,7 +15,7 @@ class BESSForecastDatabase:
         cursor = self.conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS forecasts (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 start_year INTEGER,
                 forecast_data TEXT,
                 bess_power_rating REAL,
@@ -78,7 +78,7 @@ def main():
     st.subheader("Forecaster Characteristics")
     forecaster_type = st.selectbox("Forecaster Type", ["Consultant", "Market data provider", "BESS optimizer", "BESS asset owner", "BESS debt financier", "Other"])
     forecaster_company = st.text_input("Forecaster Company Name")
-    is_anonymous = st.checkbox("Anonymous Forecast")
+    is_anonymous = int(st.checkbox("Anonymous Forecast"))
 
     if st.button('Submit Forecast') and pasted_data:
         parsed_result, error = parse_pasted_data(pasted_data)
@@ -87,7 +87,7 @@ def main():
         else:
             start_year, forecast_values = parsed_result
             if len(forecast_values) >= 10:
-                db.add_forecast(start_year, forecast_values[:10], bess_power, bess_capacity, max_cycles, forecaster_type, forecaster_company, int(is_anonymous))
+                db.add_forecast(start_year, forecast_values[:10], bess_power, bess_capacity, max_cycles, forecaster_type, forecaster_company, is_anonymous)
                 st.success('Forecast uploaded successfully!')
             else:
                 st.error('Please provide at least 10 years of revenue data.')
