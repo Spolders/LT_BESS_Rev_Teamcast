@@ -18,16 +18,26 @@ class BESSForecastDatabase:
                 id INTEGER PRIMARY KEY,
                 start_year INTEGER,
                 forecast_data TEXT,
+                bess_power_rating REAL,
+                bess_energy_capacity REAL,
+                max_cycles_per_day INTEGER,
+                forecaster_type TEXT,
+                forecaster_company TEXT,
+                is_anonymous INTEGER,
                 timestamp DATETIME
             )
         ''')
         self.conn.commit()
 
-    def add_forecast(self, start_year, forecast):
+    def add_forecast(self, start_year, forecast, bess_power, bess_capacity, max_cycles, forecaster_type, forecaster_company, is_anonymous):
         cursor = self.conn.cursor()
         forecast_str = ','.join(map(str, forecast))
-        cursor.execute('INSERT INTO forecasts (start_year, forecast_data, timestamp) VALUES (?, ?, ?)', 
-                       (start_year, forecast_str, datetime.now()))
+        cursor.execute('''
+            INSERT INTO forecasts 
+            (start_year, forecast_data, bess_power_rating, bess_energy_capacity, max_cycles_per_day, forecaster_type, forecaster_company, is_anonymous, timestamp) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', 
+        (start_year, forecast_str, bess_power, bess_capacity, max_cycles, forecaster_type, forecaster_company, is_anonymous, datetime.now()))
         self.conn.commit()
 
     def get_all_forecasts(self):
@@ -53,59 +63,23 @@ def parse_pasted_data(pasted_text):
     except Exception as e:
         return None, f"Error parsing data: {e}"
 
-def calculate_forecast_distribution(all_forecasts):
-    calendar_years_revenues = {}
-    for start_year, forecast in all_forecasts:
-        for i, revenue in enumerate(forecast):
-            year = start_year + i
-            if year not in calendar_years_revenues:
-                calendar_years_revenues[year] = []
-            calendar_years_revenues[year].append(revenue)
-    
-    distribution = {}
-    for year, revenues in calendar_years_revenues.items():
-        distribution[year] = {
-            'mean': np.mean(revenues),
-            'median': np.median(revenues),
-            'std': np.std(revenues),
-            '25th': np.percentile(revenues, 25),
-            '75th': np.percentile(revenues, 75),
-            'all_values': revenues
-        }
-    
-    return distribution
-
-def plot_forecast_distribution(distribution):
-    years = list(distribution.keys())
-    
-    fig = go.Figure()
-    
-    for year in years:
-        data = distribution[year]
-        fig.add_trace(go.Box(
-            x=[year] * len(data['all_values']),
-            y=data['all_values'],
-            name=str(year),
-            boxmean=True
-        ))
-    
-    fig.update_layout(
-        title='BESS Revenue Forecast Distribution',
-        xaxis_title='Year',
-        yaxis_title='Revenue (€)',
-        showlegend=False
-    )
-    
-    return fig
-
 def main():
     st.title('BESS Revenue Forecast Ensemble')
     db = BESSForecastDatabase()
 
-    # Forecast Input
     st.header('Paste Your BESS Revenue Forecast (Years in First Row, Revenues in Second Row)')
     pasted_data = st.text_area("Paste your data from Excel with tab separation")
-    
+
+    st.subheader("Battery Specifications")
+    bess_power = st.number_input("BESS Power Rating (MW)", min_value=0.0, value=1.0)
+    bess_capacity = st.number_input("BESS Energy Capacity (MWh)", min_value=0.0, value=1.0)
+    max_cycles = st.number_input("Maximum Cycles per Day", min_value=0, value=1, step=1)
+
+    st.subheader("Forecaster Characteristics")
+    forecaster_type = st.selectbox("Forecaster Type", ["Consultant", "Market data provider", "BESS optimizer", "BESS asset owner", "BESS debt financier", "Other"])
+    forecaster_company = st.text_input("Forecaster Company Name")
+    is_anonymous = st.checkbox("Anonymous Forecast")
+
     if st.button('Submit Forecast') and pasted_data:
         parsed_result, error = parse_pasted_data(pasted_data)
         if error:
@@ -113,34 +87,10 @@ def main():
         else:
             start_year, forecast_values = parsed_result
             if len(forecast_values) >= 10:
-                db.add_forecast(start_year, forecast_values[:10])
+                db.add_forecast(start_year, forecast_values[:10], bess_power, bess_capacity, max_cycles, forecaster_type, forecaster_company, int(is_anonymous))
                 st.success('Forecast uploaded successfully!')
             else:
                 st.error('Please provide at least 10 years of revenue data.')
-    
-    # Ensemble Visualization
-    st.header('Anonymous Forecast Distribution')
-    all_forecasts = db.get_all_forecasts()
-    
-    if all_forecasts:
-        distribution = calculate_forecast_distribution(all_forecasts)
-        fig = plot_forecast_distribution(distribution)
-        st.plotly_chart(fig)
-
-        # Summary statistics
-        st.subheader('Forecast Summary')
-        summary_df = pd.DataFrame.from_dict({
-            year: {
-                'Mean Revenue': data['mean'],
-                'Median Revenue': data['median'],
-                'Std Deviation': data['std'],
-                '25th Percentile': data['25th'],
-                '75th Percentile': data['75th']
-            } for year, data in distribution.items()
-        }, orient='index')
-        st.dataframe(summary_df)
-
-        st.metric('Total Forecasts', len(all_forecasts))
 
 if __name__ == '__main__':
     main()
