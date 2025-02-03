@@ -73,7 +73,7 @@ def main():
     st.subheader("Battery Specifications")
     bess_power = st.number_input("BESS Power Rating (MW)", min_value=0.0, value=1.0)
     bess_capacity = st.number_input("BESS Energy Capacity (MWh)", min_value=0.0, value=2.0)
-    max_cycles = st.number_input("Maximum Cycles per Day", min_value=0, value=1, step=1)
+    max_cycles = st.number_input("Maximum Cycles per Day", min_value=0, value=2.0, step=0.1)
 
     st.subheader("Forecaster Characteristics")
     forecaster_type = st.selectbox("Forecaster Type", ["Consultant", "Market data provider", "BESS optimizer", "BESS asset owner", "BESS debt financier", "Other"])
