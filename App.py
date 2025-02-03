@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objs as go
 import sqlite3
 from datetime import datetime
+import re
 
 class BESSForecastDatabase:
     def __init__(self, db_path='forecasts.db'):
@@ -42,7 +43,7 @@ def parse_pasted_data(pasted_text):
             return None, "Invalid format: Ensure you paste at least two rows (Years, Revenues)"
         
         years = df.iloc[0].dropna().astype(int).tolist()
-        revenues = df.iloc[1].dropna().astype(float).tolist()
+        revenues = df.iloc[1].dropna().apply(lambda x: float(re.sub(r'[^0-9.-]', '', str(x)))).tolist()
         
         if len(years) != len(revenues):
             return None, "Mismatched number of years and revenues."
