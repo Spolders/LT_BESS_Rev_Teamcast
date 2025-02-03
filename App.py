@@ -37,19 +37,18 @@ class BESSForecastDatabase:
 def parse_pasted_data(pasted_text):
     """Parses pasted text input and returns a list of (start_year, forecast_values)."""
     try:
-        df = pd.read_csv(pd.io.common.StringIO(pasted_text), sep='\t|,', engine='python')
-        if df.shape[1] < 2:
-            return None, "Invalid format: Ensure you paste at least two columns (Year, Revenue)"
+        df = pd.read_csv(pd.io.common.StringIO(pasted_text), sep='\t', engine='python', header=None)
+        if df.shape[0] < 2:
+            return None, "Invalid format: Ensure you paste at least two rows (Years, Revenues)"
         
-        df.columns = ['Year', 'Revenue']  # Rename columns to expected names
-        df = df.dropna()  # Remove empty rows
-        df['Year'] = df['Year'].astype(int)
-        df['Revenue'] = df['Revenue'].astype(float)
+        years = df.iloc[0].dropna().astype(int).tolist()
+        revenues = df.iloc[1].dropna().astype(float).tolist()
         
-        start_year = df['Year'].min()
-        forecast_values = df['Revenue'].tolist()
+        if len(years) != len(revenues):
+            return None, "Mismatched number of years and revenues."
         
-        return (start_year, forecast_values), None
+        start_year = years[0]
+        return (start_year, revenues), None
     except Exception as e:
         return None, f"Error parsing data: {e}"
 
@@ -103,8 +102,8 @@ def main():
     db = BESSForecastDatabase()
 
     # Forecast Input
-    st.header('Paste Your BESS Revenue Forecast (Year, Revenue)')
-    pasted_data = st.text_area("Paste your data from Excel (Year, Revenue) with a comma or tab separator")
+    st.header('Paste Your BESS Revenue Forecast (Years in First Row, Revenues in Second Row)')
+    pasted_data = st.text_area("Paste your data from Excel with tab separation")
     
     if st.button('Submit Forecast') and pasted_data:
         parsed_result, error = parse_pasted_data(pasted_data)
