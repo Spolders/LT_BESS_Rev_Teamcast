@@ -1,62 +1,7 @@
-# pages/1_Submit_Forecast.py
 import streamlit as st
 import pandas as pd
-import numpy as np
-import sqlite3
-from datetime import datetime
 import re
-
-class BESSForecastDatabase:
-    def __init__(self, db_path='forecasts.db'):
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.create_tables()
-
-    def create_tables(self):
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS forecasts (
-                id INTEGER PRIMARY KEY,
-                start_year INTEGER,
-                forecast_data TEXT,
-                timestamp DATETIME,
-                system_size FLOAT,
-                location TEXT,
-                battery_chemistry TEXT,
-                use_case TEXT,
-                premium BOOLEAN DEFAULT FALSE
-            )
-        ''')
-        self.conn.commit()
-
-    def add_forecast(self, start_year, forecast, metadata):
-        cursor = self.conn.cursor()
-        forecast_str = ','.join(map(str, forecast))
-        cursor.execute('''
-            INSERT INTO forecasts 
-            (start_year, forecast_data, timestamp, system_size, location, 
-             battery_chemistry, use_case, premium) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (start_year, forecast_str, datetime.now(), 
-              metadata['system_size'], metadata['location'],
-              metadata['battery_chemistry'], metadata['use_case'],
-              metadata['premium']))
-        self.conn.commit()
-
-    def get_forecasts(self, premium=False, filters=None):
-        cursor = self.conn.cursor()
-        query = 'SELECT * FROM forecasts'
-        if filters:
-            conditions = []
-            params = []
-            for key, value in filters.items():
-                if value:
-                    conditions.append(f"{key} = ?")
-                    params.append(value)
-            if conditions:
-                query += ' WHERE ' + ' AND '.join(conditions)
-        
-        cursor.execute(query, params if filters else None)
-        return cursor.fetchall()
+from database import BESSForecastDatabase
 
 def parse_pasted_data(pasted_text):
     try:
@@ -77,12 +22,10 @@ def parse_pasted_data(pasted_text):
 def main():
     st.title('Submit BESS Revenue Forecast')
     
-    # Premium user check (placeholder - implement actual authentication)
     is_premium = st.sidebar.checkbox('Premium User', value=False)
     
     db = BESSForecastDatabase()
     
-    # Metadata collection
     st.subheader('Project Details')
     col1, col2 = st.columns(2)
     with col1:
@@ -92,7 +35,6 @@ def main():
         battery_chemistry = st.selectbox('Battery Chemistry', ['LFP', 'NMC', 'Other'])
         use_case = st.selectbox('Use Case', ['FCR', 'aFRR', 'Wholesale Trading'])
 
-    # Forecast input
     st.subheader('Revenue Forecast')
     st.write('Paste years (first row) and revenues (second row)')
     pasted_data = st.text_area("Paste Excel data (tab-separated)")
