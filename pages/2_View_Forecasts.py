@@ -26,7 +26,7 @@ def calculate_forecast_distribution(all_forecasts):
     
     return distribution
 
-def plot_forecast_distribution(distribution, filters=None):
+def plot_forecast_distribution(distribution):
     years = list(distribution.keys())
     fig = go.Figure()
     
@@ -39,13 +39,8 @@ def plot_forecast_distribution(distribution, filters=None):
             boxmean=True
         ))
     
-    title = 'BESS Revenue Forecast Distribution'
-    if filters:
-        filter_text = ' | '.join(f'{k}: {v}' for k, v in filters.items() if v)
-        title += f'\n{filter_text}'
-    
     fig.update_layout(
-        title=title,
+        title='BESS Revenue Forecast Distribution',
         xaxis_title='Year',
         yaxis_title='Revenue (€)',
         showlegend=False
@@ -59,35 +54,30 @@ def main():
     
     db = BESSForecastDatabase()
     
-    filters = {}
     if is_premium:
-        st.sidebar.header('Filters')
-        filters['location'] = st.sidebar.selectbox('Location', ['', 'North Germany', 'South Germany'])
-        filters['battery_chemistry'] = st.sidebar.selectbox('Battery Chemistry', ['', 'LFP', 'NMC', 'Other'])
-        filters['use_case'] = st.sidebar.selectbox('Use Case', ['', 'FCR', 'aFRR', 'Wholesale Trading'])
-        
         st.sidebar.markdown('---')
-        st.sidebar.markdown('✨ Premium Features')
-        st.sidebar.markdown('- Filtered view of forecasts')
-        st.sidebar.markdown('- Detailed statistics')
-        st.sidebar.markdown('- Export capabilities')
+        st.sidebar.markdown('✨ Premium Features Coming Soon')
     
-    forecasts = db.get_forecasts(premium=is_premium, filters=filters if is_premium else None)
+    forecasts = db.get_forecasts()
     
     if forecasts:
         distribution = calculate_forecast_distribution(forecasts)
-        fig = plot_forecast_distribution(distribution, filters if is_premium else None)
+        fig = plot_forecast_distribution(distribution)
         st.plotly_chart(fig)
         
-        if is_premium:
-            st.download_button(
-                'Download Data',
-                data=pd.DataFrame(forecasts).to_csv(index=False),
-                file_name='bess_forecasts.csv',
-                mime='text/csv'
-            )
+        st.subheader('Forecast Summary')
+        summary_df = pd.DataFrame.from_dict({
+            year: {
+                'Mean Revenue': data['mean'],
+                'Median Revenue': data['median'],
+                'Std Deviation': data['std']
+            } for year, data in distribution.items()
+        }, orient='index')
+        st.dataframe(summary_df)
+
+        st.metric('Total Forecasts', len(forecasts))
     else:
-        st.info('No forecasts available for the selected filters.')
+        st.info('No forecasts available yet.')
 
 if __name__ == '__main__':
     main()
