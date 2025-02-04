@@ -34,6 +34,25 @@ class BESSForecastDatabase:
         cursor.execute('SELECT start_year, forecast_data FROM forecasts')
         return [(row[0], list(map(float, row[1].split(',')))) for row in cursor.fetchall()]
 
+def parse_pasted_data(pasted_text):
+    """Parses pasted text input and returns a list of (start_year, forecast_values)."""
+    try:
+        df = pd.read_csv(pd.io.common.StringIO(pasted_text), sep='\t|,', engine='python')
+        if df.shape[1] < 2:
+            return None, "Invalid format: Ensure you paste at least two columns (Year, Revenue)"
+        
+        df.columns = ['Year', 'Revenue']  # Rename columns to expected names
+        df = df.dropna()  # Remove empty rows
+        df['Year'] = df['Year'].astype(int)
+        df['Revenue'] = df['Revenue'].astype(float)
+        
+        start_year = df['Year'].min()
+        forecast_values = df['Revenue'].tolist()
+        
+        return (start_year, forecast_values), None
+    except Exception as e:
+        return None, f"Error parsing data: {e}"
+
 def calculate_forecast_distribution(all_forecasts):
     calendar_years_revenues = {}
     for start_year, forecast in all_forecasts:
@@ -59,36 +78,22 @@ def calculate_forecast_distribution(all_forecasts):
 def plot_forecast_distribution(distribution):
     years = list(distribution.keys())
     
-    # Create figure
     fig = go.Figure()
     
-    # Add scatter for all points if few forecasts
-    if len(next(iter(distribution.values()))['all_values']) <= 6:
-        for year in years:
-            data = distribution[year]
-            fig.add_trace(go.Scatter(
-                x=[year]*len(data['all_values']),
-                y=data['all_values'],
-                mode='markers',
-                name=f'{year} Forecasts',
-                marker=dict(size=10, opacity=0.7)
-            ))
-    else:
-        # Box plot for distribution
-        for year in years:
-            data = distribution[year]
-            fig.add_trace(go.Box(
-                x=[year]*len(data['all_values']),
-                y=data['all_values'],
-                name=str(year),
-                boxmean=True
-            ))
+    for year in years:
+        data = distribution[year]
+        fig.add_trace(go.Box(
+            x=[year] * len(data['all_values']),
+            y=data['all_values'],
+            name=str(year),
+            boxmean=True
+        ))
     
     fig.update_layout(
         title='BESS Revenue Forecast Distribution',
         xaxis_title='Year',
         yaxis_title='Revenue (€)',
-        showlegend=True
+        showlegend=False
     )
     
     return fig
@@ -98,30 +103,27 @@ def main():
     db = BESSForecastDatabase()
 
     # Forecast Input
-    st.header('Upload Your BESS Revenue Forecast')
-    start_year = st.number_input('Forecast Start Year', min_value=2024, max_value=2030, value=datetime.now().year)
+    st.header('Paste Your BESS Revenue Forecast (Year, Revenue)')
+    pasted_data = st.text_area("Paste your data from Excel (Year, Revenue) with a comma or tab separator")
     
-    forecast_input = [
-        st.number_input(f'Revenue for {start_year + i} (€)', value=0.0, key=f'year_{i}') 
-        for i in range(10)
-    ]
-    
-    if st.button('Submit Forecast'):
-        if len(forecast_input) == 10 and all(x >= 0 for x in forecast_input):
-            db.add_forecast(start_year, forecast_input)
-            st.success('Forecast uploaded anonymously!')
+    if st.button('Submit Forecast') and pasted_data:
+        parsed_result, error = parse_pasted_data(pasted_data)
+        if error:
+            st.error(error)
         else:
-            st.error('Invalid forecast. Ensure 10 years of non-negative values.')
-
+            start_year, forecast_values = parsed_result
+            if len(forecast_values) >= 10:
+                db.add_forecast(start_year, forecast_values[:10])
+                st.success('Forecast uploaded successfully!')
+            else:
+                st.error('Please provide at least 10 years of revenue data.')
+    
     # Ensemble Visualization
     st.header('Anonymous Forecast Distribution')
     all_forecasts = db.get_all_forecasts()
     
     if all_forecasts:
-        # Calculate distribution
         distribution = calculate_forecast_distribution(all_forecasts)
-        
-        # Plot distribution
         fig = plot_forecast_distribution(distribution)
         st.plotly_chart(fig)
 
