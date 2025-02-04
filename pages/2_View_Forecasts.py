@@ -1,10 +1,30 @@
-# pages/2_View_Forecasts.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
-from datetime import datetime
-from Submit_Forecast import BESSForecastDatabase
+from database import BESSForecastDatabase
+
+def calculate_forecast_distribution(all_forecasts):
+    calendar_years_revenues = {}
+    for start_year, forecast in all_forecasts:
+        for i, revenue in enumerate(forecast):
+            year = start_year + i
+            if year not in calendar_years_revenues:
+                calendar_years_revenues[year] = []
+            calendar_years_revenues[year].append(revenue)
+    
+    distribution = {}
+    for year, revenues in calendar_years_revenues.items():
+        distribution[year] = {
+            'mean': np.mean(revenues),
+            'median': np.median(revenues),
+            'std': np.std(revenues),
+            '25th': np.percentile(revenues, 25),
+            '75th': np.percentile(revenues, 75),
+            'all_values': revenues
+        }
+    
+    return distribution
 
 def plot_forecast_distribution(distribution, filters=None):
     years = list(distribution.keys())
@@ -46,7 +66,6 @@ def main():
         filters['battery_chemistry'] = st.sidebar.selectbox('Battery Chemistry', ['', 'LFP', 'NMC', 'Other'])
         filters['use_case'] = st.sidebar.selectbox('Use Case', ['', 'FCR', 'aFRR', 'Wholesale Trading'])
         
-        # Additional premium features can be added here
         st.sidebar.markdown('---')
         st.sidebar.markdown('✨ Premium Features')
         st.sidebar.markdown('- Filtered view of forecasts')
@@ -56,7 +75,8 @@ def main():
     forecasts = db.get_forecasts(premium=is_premium, filters=filters if is_premium else None)
     
     if forecasts:
-        fig = plot_forecast_distribution(forecasts, filters if is_premium else None)
+        distribution = calculate_forecast_distribution(forecasts)
+        fig = plot_forecast_distribution(distribution, filters if is_premium else None)
         st.plotly_chart(fig)
         
         if is_premium:
