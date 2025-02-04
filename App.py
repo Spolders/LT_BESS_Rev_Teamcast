@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
 import re
-from database import BESSForecastDatabase
 
 def parse_pasted_data(pasted_text):
     try:
