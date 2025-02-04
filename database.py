@@ -38,7 +38,19 @@ class BESSForecastDatabase:
               metadata['premium']))
         self.conn.commit()
 
-    def get_forecasts(self):
+    def get_forecasts(self, filters=None):
         cursor = self.conn.cursor()
-        cursor.execute('SELECT start_year, forecast_data FROM forecasts')
+        query = '''SELECT start_year, forecast_data FROM forecasts'''
+        params = []
+        
+        if filters:
+            conditions = []
+            for key, value in filters.items():
+                if value:
+                    conditions.append(f"{key} = ?")
+                    params.append(value)
+            if conditions:
+                query += ' WHERE ' + ' AND '.join(conditions)
+        
+        cursor.execute(query, params if params else None)
         return [(row[0], list(map(float, row[1].split(',')))) for row in cursor.fetchall()]
